@@ -19,11 +19,12 @@ def normalize(
 
 
 def subfig_definition(
-    name_groups: list = ['*'],
-    max_in_row: int = 2,
+    regex_groups: list = ['*'],
+    max_columns: int = 2,
 ):
     return plt.subplots(
-        len(name_groups), max_in_row,
+        ncols=max_columns,
+        nrows=len(regex__groups)/max_columns,
         constrained_layout=True,
     )
 
@@ -69,5 +70,53 @@ def tga(
         ax.legend(
             frameon=False,
         )
+
+    return fig, axs
+
+
+def isotherms_psds_grouped(
+    data,
+    regex_groups: list = ['*',],
+    xlabel: str = '$P/P_0$',
+    ylabel_left: str = '$Q\ /\ cm^3\ g^{-1}\ STP$', 
+    ylabel_right: str = '$PSD\ /\ cm^3\ g^{-1}\ \\unit{\angstrom}^{-1}$',
+    psd_xlim: list = [3.6, 200]
+):
+
+    fig, axs = plt.subplots(
+        ncols=2, nrows=len(regex_groups),
+        constrained_layout=True,
+    )
+
+    for i, g in enumerate(regex_groups):
+        iso = axs[i,0]
+        psd = axs[i,1]
+        dat = [key for key in dat if re.match(g, key)]
+        for d in dat:
+            iso.scatter(
+                d['P/P0']. d['loading'],
+                clip_on=False,
+                marker='^',
+            )
+            psd.plot(
+                d['w'], d['dV/dw'],
+                label=d,
+            )
+        psd.legend(frameon=False)
+
+    for i, ax in enumerate(axs.flat):
+        ax.set_ylim(0, ax.get_ylim()[1])
+        if i%2 == 0:
+            ax.set_ylabel(ylabel_left)
+            ax.set_xlim(0, 1)
+
+        else:
+            ax.set_ylabel(ylabel_right)
+            ax.yaxis.tick_right()
+            ax.yaxis.set_label_position('right')
+            ax.set_xlim(psd_xlim[0], psd_xlim[1])
+
+        if i in [len(axs), len(axs)-1]:
+            ax.set_xlabel(xlabel)
 
     return fig, axs
