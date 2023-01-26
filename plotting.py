@@ -4,6 +4,7 @@ import pandas as pd
 import re
 import matplotlib.pyplot as plt
 import numpy as np
+import pygaps.parsing as pgp
 
 
 def normalize(
@@ -24,7 +25,7 @@ def subfig_definition(
 ):
     return plt.subplots(
         ncols=max_columns,
-        nrows=len(regex__groups)/max_columns,
+        nrows=len(regex_groups)/max_columns,
         constrained_layout=True,
     )
 
@@ -74,13 +75,91 @@ def tga(
     return fig, axs
 
 
+def get_isotherms_psds(
+    psd_path: str = './psd/',
+    isotherm_path: str = './isotherms/'
+):
+    psd_files = glob.glob(f'{psd_path}*.CSV')
+    psds = {}
+
+    isotherm_files = glob.glob(f'{isotherm_path}*.csv')
+    isotherm_files.append(
+        glob.glob(f'{isotherm_path}*.aif')
+    )
+    isotherms = {}
+
+    for f in psd_files:
+        name = f.split(psd_path).split('*.CSV')
+        psds[name] = pd.read_csv(
+            f,
+            usecols=['w', 'dV/dw', 'Vcum', 'dS/dw', 'Scum', ],
+        )
+
+    aif = re.findall(r'*.aif', isotherm_files)
+    for f in aif:
+        name = f.split(psd_path).split('*.aif')
+        if name not in psds.keys():
+            raise Exception(
+                f'{name} found in {isotherm_path} but not in'
+                f'{psd_path}. Not reading this isotherm. Please'
+                f' check your data.'
+            )
+
+        else:
+            isotherm = pgp.isotherm_from_aif(f)
+            pressure = isotherm.data_raw['pressure']
+            pressure_saturation = isotherm.data_raw['pressure_saturation']
+            rel_pressure = pressure / pressure_saturation
+            isotherms[name] = pd.DataFrame(
+                list(zip(
+                    rel_pressure, isotherm.data_raw['loading']
+                )
+                ),
+                columns=['P/P0', 'loading', ],
+            )
+
+    csv = re.findall(r'*.csv', isotherm_files)
+    for f in csv:
+        name = f.split(psd_path).split('*.csv')
+        if name not in psds.keys():
+            raise Exception(
+                f'{name} found in {isotherm_path} but not in'
+                f'{psd_path}. Not reading this isotherm. Please'
+                f' check your data.'
+            )
+
+        if name in isotherm.keys():
+            raise Exception(
+                f'Identically named .csv and .aif isotherm files'
+                f' found.\n'
+                f'name = {name}\n'
+                f'Only using the .aif file. Please check your data.'
+            )
+
+        else:
+            isotherm[name] = pd.read_csv(
+                f,
+                usecols=['relative pressure', 'loading', ]
+            )
+            isotherm[name].columns = ['P/P0', 'loading', ]
+
+        isotherms_psds = {}
+        for name in psds:
+            isotherms_psds[name] = pd.concat(
+                [isotherms[name], psds[name]],
+                axis=1,
+            )
+
+        return isotherms_psds
+
+
 def isotherms_psds_grouped(
     data,
-    regex_groups: list = ['*',],
+    regex_groups: list = ['*', ],
     xlabel: str = '$P/P_0$',
-    ylabel_left: str = '$Q\ /\ cm^3\ g^{-1}\ STP$', 
+    ylabel_left: str = '$Q\ /\ cm^3\ g^{-1}\ STP$',
     ylabel_right: str = '$PSD\ /\ cm^3\ g^{-1}\ \\unit{\angstrom}^{-1}$',
-    psd_xlim: list = [3.6, 200]
+    psd_xlim: "tuple[float, float]" = [3.6, 20],
 ):
 
     fig, axs = plt.subplots(
@@ -89,12 +168,13 @@ def isotherms_psds_grouped(
     )
 
     for i, g in enumerate(regex_groups):
-        iso = axs[i,0]
-        psd = axs[i,1]
-        dat = [key for key in dat if re.match(g, key)]
-        for d in dat:
+        iso = axs[i, 0]
+        psd = axs[i, 1]
+        data_items = [key for key in data if re.match(g, key)]
+        for dat in data_items:
+            d = data[dat]
             iso.scatter(
-                d['P/P0']. d['loading'],
+                d['P/P0'], d['loading'],
                 clip_on=False,
                 marker='^',
             )
@@ -106,7 +186,7 @@ def isotherms_psds_grouped(
 
     for i, ax in enumerate(axs.flat):
         ax.set_ylim(0, ax.get_ylim()[1])
-        if i%2 == 0:
+        if i % 2 == 0:
             ax.set_ylabel(ylabel_left)
             ax.set_xlim(0, 1)
 
