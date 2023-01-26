@@ -1,4 +1,6 @@
-
+"""
+Some functions for common plots I make in pyplot. Work in progress.
+"""
 import glob
 import pandas as pd
 import re
@@ -11,6 +13,10 @@ def normalize(
     x,
     newRange=(0, 1),
 ):
+    r"""
+    Simple function to normalize data within some range. Defaults to 0 to 1.
+    Can be useful for normalizing TGA masses that go (slightly) negative"""
+
     xmin, xmax = np.min(x), np.max(x)
     norm = (x - xmin)/(xmax - xmin)
     if newRange == (0, 1):
@@ -23,6 +29,12 @@ def subfig_definition(
     regex_groups: list = ['*'],
     max_columns: int = 2,
 ):
+    r"""
+    Define grid of subfigures according to groups of plots.
+    Groups are defined by regular expressions, which correpond
+    to filenames.
+    """
+
     return plt.subplots(
         ncols=max_columns,
         nrows=len(regex_groups)/max_columns,
@@ -36,6 +48,10 @@ def tga(
     xlabel: str = 'T / $\\mathrm{^{\\circ}C}$', ylabel: str = 'wt.%',
     xlim: tuple = [0, 1000], ylim: tuple = [0, 100],
 ):
+    """
+    Plots set of subfigures of TGA data, grouped by regular expressions.
+    """
+
     dat = {}
 
     path = './'
@@ -79,6 +95,12 @@ def get_isotherms_psds(
     psd_path: str = './psd/',
     isotherm_path: str = './isotherms/'
 ):
+    r"""
+    Gets isotherms (from .aif or .csv) and pore size distributions 
+    (psds, from .csv) then combines them into a dictionary of dataframes.
+    This can then be used in plotting.
+    """
+
     psd_files = glob.glob(f'{psd_path}*.CSV')
     psds = {}
 
@@ -161,6 +183,10 @@ def isotherms_psds_grouped(
     ylabel_right: str = '$PSD\ /\ cm^3\ g^{-1}\ \\unit{\angstrom}^{-1}$',
     psd_xlim: "tuple[float, float]" = [3.6, 20],
 ):
+    r"""
+    Plots groups of isotherms (defined by regex) alongside PSDs. Use
+    get_isotherms_psds() to gather the data, then input it here.
+    """
 
     fig, axs = plt.subplots(
         ncols=2, nrows=len(regex_groups),
