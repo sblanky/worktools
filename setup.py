@@ -6,7 +6,7 @@ setup(
     description='Some tools for plotting and more for my workflow',
     url='https://github.com/sblanky/worktools',
     install_requires=[],
-    author='L. Scott Blankenship'
+    author='L. Scott Blankenship',
     author_email='leo.blankenship1@nottingham.ac.uk',
     packages=find_packages(),
     zip_safe=False,
