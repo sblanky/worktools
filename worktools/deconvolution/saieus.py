@@ -1,5 +1,6 @@
 import pandas as pd
 from dataclasses import dataclass, field
+import os
 
 
 def closest(list, Number):
@@ -13,7 +14,7 @@ def parse(file):
     psd_columns = ['w', 'V cum', 'dV/dw', 'S cum', 'dS/dw']
     isotherm_columns = ['P/P0', 'Amount Adsorbed', 'Fit']
 
-    dat = pd.read_csv('./VRcP-650.CSV')
+    dat = pd.read_csv(file)
     dat.rename(columns={
         'Unnamed: 0': 'identifier',
         'Unnamed: 2': 'value',
@@ -23,6 +24,14 @@ def parse(file):
         ['identifier',
          'value']
     ].dropna().set_index('identifier').transpose().to_dict('records')[0]
+    name = os.path.split(file)[1]
+    name = os.path.splitext(name)[0]
+    if meta_dat['Sample (ID)'] != name:
+        sampleid = meta_dat['Sample (ID)']
+        raise ValueError(
+            f'Name of file ({name}) does not match Sample ID '
+            f'({sampleid}). Check your data'
+        )
 
     psd_dat = dat[psd_columns].dropna().to_dict('list')
     isotherm_dat = dat[isotherm_columns].dropna().to_dict('list')
@@ -58,10 +67,19 @@ class saieus:
     def width_range(self):
         return (min(self.psd['w']), max(self.psd['w']))
 
+    def peak(self):
+        index_V = self.psd['dV/dw'].index(max(self.psd['dV/dw']))
+        index_S = self.psd['dS/dw'].index(max(self.psd['dS/dw']))
+        return self.psd['w'][index_V], self.psd['w'][index_S]
+
     def porosity_slice(
         self,
         limits: tuple[float, float] = [None, None],
     ):
+        if limits[0] is None:
+            limits[0] = 0
+        if limits[1] is None:
+            limits[1] = max(self.psd['w'])
         if limits[0] > limits[1]:
             raise ValueError(
                 f'your limits are in the wrong order; {limits}. '
@@ -69,22 +87,16 @@ class saieus:
             )
             return
 
-        indeces = tuple[int, int]
-        for l in limits:
-            indeces[l] = closest(self.psd['w'], limits[l])
+        indeces = []
+        for i, l in enumerate(limits):
+            indeces.append(closest(self.psd['w'], l))
         V_range = (
-            self.psd['Vcum'][indeces[0]], self.psd['Vcum'][indeces[1]]
+            self.psd['V cum'][indeces[0]], self.psd['V cum'][indeces[1]]
         )
         S_range = (
-            self.psd['Scum'][indeces[0]], self.psd['Scum'][indeces[1]]
+            self.psd['S cum'][indeces[0]], self.psd['S cum'][indeces[1]]
         )
         V = V_range[1] - V_range[0]
         S = S_range[1] - S_range[0]
 
         return V, S
-
-
-    def parse_saieus(self, file):
-        with open(file) as f:
-            reader = DataclassReader(f, saieus)
-            reader.map('')
