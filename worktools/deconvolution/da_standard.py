@@ -30,6 +30,7 @@ def split_isotherm(
     isotherm,
     p_limits: tuple[float, float] = [None, None],
     num_points: int = 10,
+    second_deriv_tolerance: float = 1e-3,
 ):
     pressure_full = list(isotherm.pressure())
     pressure = [x for x in pressure_full if x > p_limits[0]]
@@ -67,7 +68,7 @@ def split_isotherm(
         )
         #print(second_derivative_range)
 
-        if second_derivative_range < 1e-3:
+        if second_derivative_range < second_deriv_tolerance:
             linear_pressure_lists.append(pressure_list)
 
     return linear_pressure_lists
@@ -102,6 +103,7 @@ def isotherm_splitter(
 
 def dr_plotter(
     linear_pressure_lists: list,
+    micropore_capacity_limit: float,
     isotherm,
 ):
     results_dict = {}
@@ -111,38 +113,65 @@ def dr_plotter(
             isotherm,
             p_limits=[min(pressure_list), max(pressure_list)],
         )
-        results['length'] = len(pressure_list)
-        results['pressure'] = pressure_list
-        results_dict[n] = results
-        n+=1
+        if results['limiting_micropore_capacity'] < micropore_capacity_limit:
+            results['num_points'] = len(pressure_list)
+            results['pressure'] = pressure_list
+            results_dict[n] = results
+            n+=1
 
     return results_dict
 
 
-def dr_results_sorter(
-    results_dict
+def dr_results_filter(
+    results_dict,
+    corr_coef: float = 0.999,
 ):
     results_filtered = {}
     for r in results_dict:
         result = results_dict[r]
-        if abs(result['corr_coef']) > 0.999:
+        if abs(result['corr_coef']) > corr_coef:
             results_filtered[r] = results_dict[r]
 
     return results_filtered
 
 
-linear_pressure_lists = split_isotherm(
-    isotherm, p_limits=[1e-5, 0.1]
-)
-print(linear_pressure_lists)
-results_dict = dr_plotter(linear_pressure_lists, isotherm)
-filtered_results = dr_results_sorter(results_dict)
-for f in filtered_results:
-    filt = filtered_results[f]
-    print(filt['pressure'])
-    pgc.dr_da_plots.dr_plot(
+def optimum_dr(
+    results_dict
+):
+    num_points = 0
+    for r in results_dict:
+        if results_dict[r]['num_points'] > num_points:
+            num_points = results_dict[r]['num_points']
+            result = results_dict[r]
+    return results_dict[r]
+
+
+def analyseDR(
+    isotherm,
+    p_limits=[0, 0.1],
+    corr_coef=0.999,
+    verbose=False,
+):
+    linear_pressure_lists = split_isotherm(
         isotherm,
-        p_limits=[min(filt['pressure']), max(filt['pressure'])],
-        verbose=True,
+        p_limits=p_limits,
+        second_deriv_tolerance=1,
     )
-    plt.show()
+    results_dict = dr_plotter(
+        linear_pressure_lists,
+        max(isotherm.loading()),
+        isotherm)
+    filtered_results = dr_results_filter(results_dict)
+    result = optimum_dr(filtered_results)
+    if verbose:
+        pgc.dr_da_plots.dr_plot(
+            isotherm,
+            p_limits=[min(result['pressure']), max(result['pressure'])],
+            verbose=True
+        )
+        plt.show()
+    return result
+
+
+print(max(isotherm.loading()))
+print(analyseDR(isotherm, corr_coef=0.99, verbose=True))
