@@ -8,14 +8,6 @@ import numpy as np
 from pygaps.utilities.exceptions import CalculationError
 from pygaps.utilities.exceptions import ParameterError
 
-Path = '/home/pcxtsbl/CodeProjects/labcore_upload/robert/aif/'
-isotherm = pgp.isotherm_from_aif(
-    f'{Path}ACC2700.aif',
-)
-
-
-unfiltered_results = {}
-
 
 def list_split(
     List, min_length
@@ -42,7 +34,6 @@ def curvature_filter(
     second_derivative = spline.derivative(nu=2)
 
     curvature = abs(max(second_derivative(x)) - min(second_derivative(x)))
-    print(curvature)
     if curvature > tolerance:
         return False
     else:
@@ -228,10 +219,12 @@ def DRoptimum(
 
 def analyseDR(
     isotherm,
-    p_limits=[0, 0.1],
-    corr_coef=0.999,
-    curvature=0.05,
-    verbose=False,
+    num_points: int = 10,
+    p_limits: tuple[float, float] = [0, 0.1],
+    corr_coef: float = 0.99,
+    curvature: float = 0.1,
+    verbose: bool = False,
+    output_dir: str = './DR/'
 ):
     pressure_lists = split_pressures(
         isotherm,
@@ -253,18 +246,33 @@ def analyseDR(
         results,
         isotherm
     )
-    print(results_filtered)
+    print(len(results_filtered))
     result = DRoptimum(results_filtered)
 
     if verbose:
+        print(
+            f'\nOptimum DR result selected from '
+            f'{len(results_filtered)} filtered results.'
+            f' Optimum result:\n'
+        )
         pgc.dr_da_plots.dr_plot(
             isotherm,
-            p_limits=[min(result['pressure']), max(result['pressure'])],
+            p_limits=[
+                min(result['pressure']),
+                max(result['pressure'])
+            ],
             verbose=True
         )
         plt.show()
 
-    return result
+    if output_dir is not None:
+        import os
+        import pandas as pd
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        pd.DataFrame(results_filtered).to_csv(
+            f'{output_dir}filtered.csv',
+            index=False
+        )
 
-print(max(isotherm.loading()))
-print(analyseDR(isotherm, corr_coef=0.99, verbose=True))
+    return result
