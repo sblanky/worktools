@@ -1,6 +1,7 @@
 import pandas as pd
 from dataclasses import dataclass, field
 import os
+import warnings
 
 
 def closest(list, Number):
@@ -28,7 +29,7 @@ def parse(file):
     name = os.path.splitext(name)[0]
     if meta_dat['Sample (ID)'] != name:
         sampleid = meta_dat['Sample (ID)']
-        raise ValueError(
+        warnings.warn(
             f'Name of file ({name}) does not match Sample ID '
             f'({sampleid}). Check your data'
         )
@@ -100,3 +101,16 @@ class saieus:
         S = S_range[1] - S_range[0]
 
         return V, S
+
+    def pore_region_slice(
+        self,
+        region: str,
+    ):
+        if region is None:
+            region = 'total'
+        if region in ['micropore', 'micro']:
+            return porosity_slice([0, 20])
+        if region in ['mesopore', 'meso']:
+            return porosity_slice([20, 500])
+        if region is 'total':
+            return(porosity_slice())
