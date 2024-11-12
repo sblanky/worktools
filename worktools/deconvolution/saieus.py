@@ -14,8 +14,10 @@ def closest(list, Number):
 def parse(file):
     psd_columns = ['w', 'V cum', 'dV/dw', 'S cum', 'dS/dw']
     isotherm_columns = ['P/P0', 'Amount Adsorbed', 'Fit']
+    isotherm2_columns = ['P/P0.1', 'Amount Adsorbed.1', 'Fit.1']
 
     dat = pd.read_csv(file)
+    print(dat.columns)
     dat.rename(columns={
         'Unnamed: 0': 'identifier',
         'Unnamed: 2': 'value',
@@ -36,13 +38,22 @@ def parse(file):
 
     psd_dat = dat[psd_columns].dropna().to_dict('list')
     isotherm_dat = dat[isotherm_columns].dropna().to_dict('list')
+    isotherm2_dat = {}
+    if 'Isotherm 2 >>' in dat.columns:
+        isotherm2_dat = dat[isotherm2_columns].dropna().to_dict('list')
+        isotherm2_dat = dict(zip(
+            isotherm_columns,
+            list(isotherm2_dat.values())
+        ))
 
     return saieus(
         material=meta_dat['Sample (ID)'],
         model=meta_dat['Selected(Model1)'],
         lambda_regularisation=meta_dat['Lambda'],
         stdev=meta_dat['St Dev of Fit'],
-        psd=psd_dat, isotherm=isotherm_dat,
+        psd=psd_dat,
+        isotherm=isotherm_dat,
+        isotherm2=isotherm2_dat,
     )
 
 
@@ -60,6 +71,11 @@ class saieus:
         'S cum': None,
     })
     isotherm: dict = field(default_factory = lambda: {
+        'P/P0': None,
+        'Amount Adsorbed': None,
+        'Fit': None,
+    })
+    isotherm2: dict = field(default_factory = lambda: {
         'P/P0': None,
         'Amount Adsorbed': None,
         'Fit': None,
@@ -102,15 +118,47 @@ class saieus:
 
         return V, S
 
+    def porosity_slice_percent(
+        self,
+        limits: tuple[float, float] = [None, None]
+    ):
+        return tuple(
+            region / total for region, total in zip(
+                self.porosity_slice(limits),
+                self.porosity_slice()
+            )
+        )
+
+    def pore_region_slice_percent(
+        self,
+        region: str = None,
+    ):
+        return tuple(
+            region / total for region, total in zip(
+                self.pore_region_slice(region),
+                self.pore_region_slice()
+            )
+        )
+
     def pore_region_slice(
         self,
-        region: str,
+        region: str = None,
     ):
         if region is None:
             region = 'total'
         if region in ['micropore', 'micro']:
-            return porosity_slice([0, 20])
+            return self.porosity_slice([0, 20])
         if region in ['mesopore', 'meso']:
-            return porosity_slice([20, 500])
-        if region is 'total':
-            return(porosity_slice())
+            return self.porosity_slice([20, 500])
+        if region in ['ultramicropore', 'ultramicro']:
+            return self.porosity_slice([0, 7])
+        if region in ['supermicropore', 'supermicro']:
+            return self.porosity_slice([7, 20])
+        if region == 'total':
+            return(self.porosity_slice())
+
+        raise ValueError(
+            'Region not in defined pore size regions'
+            '. Please check your spelling and try again.'
+        )
+        return
